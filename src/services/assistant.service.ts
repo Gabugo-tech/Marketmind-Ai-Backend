@@ -225,14 +225,18 @@ IMPORTANT RULES:
     const result = await chat.sendMessage({ message: userMessage });
     reply = result.text ?? "I couldn't generate a response. Please try again.";
   } catch (error) {
-    // Graceful fallback
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('Gemini error:', errMsg);
+    console.error('Gemini error full:', errMsg);
+    console.error('Gemini error stack:', error instanceof Error ? error.stack : '');
 
     if (errMsg.includes('API_KEY') || errMsg.includes('not configured')) {
       reply = "⚠️ The AI assistant is not configured yet. Please set your GEMINI_API_KEY in the backend environment variables.";
+    } else if (errMsg.includes('API key not valid') || errMsg.includes('invalid') || errMsg.includes('401')) {
+      reply = "⚠️ The Gemini API key is invalid. Please check the GEMINI_API_KEY in Railway environment variables.";
+    } else if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      reply = "⚠️ Gemini API quota exceeded. Please wait a moment and try again.";
     } else {
-      reply = "⚠️ I'm having trouble connecting to the AI service right now. The core inventory and sales features continue to work normally. Please try again in a moment.";
+      reply = `⚠️ AI service error: ${errMsg.slice(0, 100)}. Please try again.`;
     }
   }
 
