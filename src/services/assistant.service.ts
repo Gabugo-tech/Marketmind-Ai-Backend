@@ -8,17 +8,17 @@
  * - Graceful fallback if Gemini is unavailable
  */
 
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { prisma } from '../database/client';
 import { config } from '../config';
 import { subDays, format, startOfMonth, endOfMonth, startOfDay } from 'date-fns';
 
 // Lazy-init the Gemini client
-let genAI: GoogleGenerativeAI | null = null;
-function getClient(): GoogleGenerativeAI {
+let genAI: GoogleGenAI | null = null;
+function getClient(): GoogleGenAI {
   if (!genAI) {
     if (!config.gemini.apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+    genAI = new GoogleGenAI({ apiKey: config.gemini.apiKey });
   }
   return genAI;
 }
@@ -184,13 +184,6 @@ export async function chat(
 
   try {
     const client = getClient();
-    const model = client.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      ],
-    });
 
     // Build context from real business data
     const businessContext = await buildBusinessContext(businessId);
@@ -212,27 +205,25 @@ IMPORTANT RULES:
 8. Keep responses friendly and professional. This trader is busy.`;
 
     // Build conversation history for multi-turn
-    const history = conversation.messages
-      .slice(-10) // Last 10 messages for context
+    const historyMessages = conversation.messages
+      .slice(-10)
       .map((m) => ({
-        role: m.role === 'USER' ? 'user' : 'model',
+        role: m.role === 'USER' ? 'user' as const : 'model' as const,
         parts: [{ text: m.content }],
       }));
 
-    const chat = model.startChat({
-      history: [
-        { role: 'user', parts: [{ text: systemPrompt }] },
-        { role: 'model', parts: [{ text: "Understood. I'm ready to help you manage your business. What would you like to know?" }] },
-        ...history,
-      ],
-      generationConfig: {
+    const chat = client.chats.create({
+      model: 'gemini-2.0-flash',
+      config: {
+        systemInstruction: systemPrompt,
         maxOutputTokens: 1024,
         temperature: 0.4,
       },
+      history: historyMessages,
     });
 
-    const result = await chat.sendMessage(userMessage);
-    reply = result.response.text();
+    const result = await chat.sendMessage({ message: userMessage });
+    reply = result.text ?? "I couldn't generate a response. Please try again.";
   } catch (error) {
     // Graceful fallback
     const errMsg = error instanceof Error ? error.message : String(error);
