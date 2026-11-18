@@ -22,6 +22,7 @@ async function callGemini(prompt: string, history: { role: string; text: string 
   ];
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  console.log('Calling Gemini API with model: gemini-2.5-flash');
 
   const response = await fetch(url, {
     method: 'POST',
