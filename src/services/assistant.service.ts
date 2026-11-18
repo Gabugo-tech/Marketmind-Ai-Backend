@@ -7,32 +7,27 @@ import { prisma } from '../database/client';
 import { config } from '../config';
 import { subDays, format, startOfMonth, endOfMonth, startOfDay } from 'date-fns';
 
-// Direct REST API call — works with both AIza... and AQ. key formats
+// Direct REST API call to Groq (free, no credit card, OpenAI-compatible)
 async function callGemini(prompt: string, history: { role: string; text: string }[]): Promise<string> {
-  const apiKey = config.gemini.apiKey;
+  const apiKey = config.gemini.apiKey; // reusing same env var — just paste Groq key there
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  // Build contents array for multi-turn
-  const contents = [
-    ...history.map(h => ({
-      role: h.role,
-      parts: [{ text: h.text }],
-    })),
-    { role: 'user', parts: [{ text: prompt }] },
+  const messages = [
+    ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : h.role, content: h.text })),
+    { role: 'user', content: prompt },
   ];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  console.log('Calling Gemini API with model: gemini-2.5-flash');
-
-  const response = await fetch(url, {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      contents,
-      generationConfig: {
-        maxOutputTokens: 1024,
-        temperature: 0.4,
-      },
+      model: 'llama3-70b-8192',  // free tier, very capable
+      messages,
+      max_tokens: 1024,
+      temperature: 0.4,
     }),
   });
 
@@ -42,9 +37,9 @@ async function callGemini(prompt: string, history: { role: string; text: string 
   }
 
   const data = await response.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    choices?: Array<{ message?: { content?: string } }>;
   };
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "I couldn't generate a response.";
+  return data.choices?.[0]?.message?.content ?? "I couldn't generate a response.";
 }
 
 async function buildBusinessContext(businessId: string): Promise<string> {
@@ -148,14 +143,14 @@ RULES:
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error('Gemini error:', errMsg.slice(0, 300));
 
-    if (errMsg.includes('API key not valid') || errMsg.includes('UNAUTHENTICATED')) {
-      reply = "⚠️ The Gemini API key is invalid. Please update GEMINI_API_KEY in Railway with the key from https://aistudio.google.com/app/apikey";
-    } else if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED')) {
-      reply = "⚠️ API quota exceeded. Please wait a moment and try again.";
-    } else if (errMsg.includes('not found') || errMsg.includes('404')) {
-      reply = "⚠️ Model not found. Please check the GEMINI_API_KEY in Railway environment variables.";
+    if (errMsg.includes('API key not valid') || errMsg.includes('UNAUTHENTICATED') || errMsg.includes('invalid_api_key')) {
+      reply = "⚠️ Invalid API key. Please update GEMINI_API_KEY in Railway with your Groq API key from https://console.groq.com";
+    } else if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('rate_limit')) {
+      reply = "⚠️ API rate limit reached. Please wait a moment and try again.";
+    } else if (errMsg.includes('not found') || errMsg.includes('404') || errMsg.includes('model')) {
+      reply = `⚠️ Model error: ${errMsg.slice(0, 150)}`;
     } else {
-      reply = `⚠️ AI service error. Please try again. (${errMsg.slice(0, 100)})`;
+      reply = `⚠️ AI error: ${errMsg.slice(0, 150)}`;
     }
   }
 
