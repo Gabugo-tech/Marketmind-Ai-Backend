@@ -24,7 +24,7 @@ async function callGemini(prompt: string, history: { role: string; text: string 
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'llama3-70b-8192',  // free tier, very capable
+      model: 'llama-3.3-70b-versatile',  // current free tier model on Groq
       messages,
       max_tokens: 1024,
       temperature: 0.4,
