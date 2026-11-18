@@ -213,7 +213,7 @@ IMPORTANT RULES:
       }));
 
     const chat = client.chats.create({
-      model: 'gemini-1.5-flash-latest',
+      model: 'gemini-1.5-flash',
       config: {
         systemInstruction: systemPrompt,
         maxOutputTokens: 1024,
