@@ -112,9 +112,10 @@ export async function loginUser(input: LoginInput) {
     },
   });
 
-  if (!user || !user.isActive) throw new UnauthorizedError('Invalid email or password');
+  if (!user) throw new UnauthorizedError('Invalid email or password');
 
-  // Block suspended accounts with a clear message
+  // Check suspension BEFORE isActive — suspension sets isActive=false,
+  // so we must detect it first to return the right message
   if (user.isSuspended) {
     throw new UnauthorizedError(
       user.suspendedReason
@@ -122,6 +123,8 @@ export async function loginUser(input: LoginInput) {
         : 'Your account has been suspended. Contact support.'
     );
   }
+
+  if (!user.isActive) throw new UnauthorizedError('Invalid email or password');
 
   const passwordMatch = await bcrypt.compare(input.password, user.passwordHash);
   if (!passwordMatch) throw new UnauthorizedError('Invalid email or password');

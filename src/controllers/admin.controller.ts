@@ -69,6 +69,13 @@ export async function unsuspendUser(req: AuthRequest, res: Response, next: NextF
   } catch (error) { next(error); }
 }
 
+export async function deleteUser(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const result = await adminService.deleteUser(String(req.params.userId), req.user!.id);
+    sendSuccess(res, result, 'User deleted');
+  } catch (error) { next(error); }
+}
+
 // ── Businesses ────────────────────────────────────────────────────────────────
 export async function getBusinesses(req: Request, res: Response, next: NextFunction) {
   try {

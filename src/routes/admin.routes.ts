@@ -26,6 +26,7 @@ router.get('/users',                          ctrl.getUsers);
 router.patch('/users/:userId/toggle',         ctrl.toggleUser);
 router.post('/users/:userId/suspend',         ctrl.suspendValidators, ctrl.suspendUser);
 router.post('/users/:userId/unsuspend',       ctrl.unsuspendUser);
+router.delete('/users/:userId',               ctrl.deleteUser);
 router.get('/businesses',                     ctrl.getBusinesses);
 router.get('/revenue-trend',                  ctrl.getRevenueTrend);
 router.get('/top-businesses',                 ctrl.getTopBusinesses);

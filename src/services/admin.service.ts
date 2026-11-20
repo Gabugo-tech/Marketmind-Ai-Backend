@@ -179,7 +179,25 @@ export async function unsuspendUser(userId: string, adminId: string) {
   });
 }
 
-// ── All businesses (paginated) ────────────────────────────────────────────────
+// ── Delete a user and all their data ─────────────────────────────────────────
+export async function deleteUser(userId: string, adminId: string) {
+  if (userId === adminId) throw new Error('Cannot delete your own account');
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user) throw new Error('User not found');
+  if (user.role === 'ADMIN') throw new Error('Cannot delete an admin account');
+
+  // Revoke tokens first
+  await prisma.refreshToken.deleteMany({ where: { userId } });
+
+  // Cascade delete via Prisma (all related data deleted through relations)
+  await prisma.user.delete({ where: { id: userId } });
+
+  return { id: userId, deleted: true };
+}
 export async function getAllBusinesses(page = 1, limit = 20, search = '') {
   const skip = (page - 1) * limit;
   const where = search
