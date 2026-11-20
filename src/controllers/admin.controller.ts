@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { body } from 'express-validator';
 import { validate } from '../middleware/validate';
-import { sendSuccess, sendError } from '../utils/response';
+import { sendSuccess } from '../utils/response';
 import { AuthRequest } from '../types';
 import * as adminService from '../services/admin.service';
 
@@ -9,6 +9,11 @@ import * as adminService from '../services/admin.service';
 export const adminLoginValidators = [
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').notEmpty().withMessage('Password required'),
+  validate,
+];
+
+export const suspendValidators = [
+  body('reason').trim().notEmpty().withMessage('Suspension reason is required'),
   validate,
 ];
 
@@ -25,8 +30,7 @@ export async function adminLogin(req: Request, res: Response, next: NextFunction
 // ── Platform stats ────────────────────────────────────────────────────────────
 export async function getStats(_req: Request, res: Response, next: NextFunction) {
   try {
-    const stats = await adminService.getPlatformStats();
-    sendSuccess(res, stats);
+    sendSuccess(res, await adminService.getPlatformStats());
   } catch (error) { next(error); }
 }
 
@@ -36,8 +40,7 @@ export async function getUsers(req: Request, res: Response, next: NextFunction) 
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const search = (req.query.search as string) || '';
-    const result = await adminService.getAllUsers(page, limit, search);
-    sendSuccess(res, result);
+    sendSuccess(res, await adminService.getAllUsers(page, limit, search));
   } catch (error) { next(error); }
 }
 
@@ -48,14 +51,31 @@ export async function toggleUser(req: AuthRequest, res: Response, next: NextFunc
   } catch (error) { next(error); }
 }
 
+export async function suspendUser(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const result = await adminService.suspendUser(
+      String(req.params.userId),
+      req.user!.id,
+      req.body.reason
+    );
+    sendSuccess(res, result, 'User suspended');
+  } catch (error) { next(error); }
+}
+
+export async function unsuspendUser(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const result = await adminService.unsuspendUser(String(req.params.userId), req.user!.id);
+    sendSuccess(res, result, 'User unsuspended');
+  } catch (error) { next(error); }
+}
+
 // ── Businesses ────────────────────────────────────────────────────────────────
 export async function getBusinesses(req: Request, res: Response, next: NextFunction) {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const search = (req.query.search as string) || '';
-    const result = await adminService.getAllBusinesses(page, limit, search);
-    sendSuccess(res, result);
+    sendSuccess(res, await adminService.getAllBusinesses(page, limit, search));
   } catch (error) { next(error); }
 }
 
@@ -63,8 +83,7 @@ export async function getBusinesses(req: Request, res: Response, next: NextFunct
 export async function getRevenueTrend(req: Request, res: Response, next: NextFunction) {
   try {
     const days = Math.min(parseInt(req.query.days as string) || 30, 365);
-    const trend = await adminService.getPlatformRevenueTrend(days);
-    sendSuccess(res, trend);
+    sendSuccess(res, await adminService.getPlatformRevenueTrend(days));
   } catch (error) { next(error); }
 }
 
@@ -72,7 +91,6 @@ export async function getRevenueTrend(req: Request, res: Response, next: NextFun
 export async function getTopBusinesses(req: Request, res: Response, next: NextFunction) {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
-    const data = await adminService.getTopBusinesses(limit);
-    sendSuccess(res, data);
+    sendSuccess(res, await adminService.getTopBusinesses(limit));
   } catch (error) { next(error); }
 }

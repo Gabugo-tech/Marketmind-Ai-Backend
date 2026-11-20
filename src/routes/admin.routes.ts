@@ -6,7 +6,7 @@ import * as ctrl from '../controllers/admin.controller';
 
 const router = Router();
 
-// ── Strict rate-limit for admin login: 10 req / 15 min per IP ─────────────────
+// ── Admin login: IP rate-limit (10/15min) + DB brute-force tracking ───────────
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -16,24 +16,18 @@ const adminLoginLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
-// POST /api/admin/login
-// Protected by: IP rate-limit → brute-force DB tracking → validators
-router.post(
-  '/login',
-  adminLoginLimiter,
-  adminBruteForce,
-  ctrl.adminLoginValidators,
-  ctrl.adminLogin
-);
+router.post('/login', adminLoginLimiter, adminBruteForce, ctrl.adminLoginValidators, ctrl.adminLogin);
 
-// All routes below require a valid admin JWT (signed with ADMIN_JWT_SECRET)
+// All routes below require a valid admin JWT (ADMIN_JWT_SECRET)
 router.use(requireAdmin);
 
-router.get('/stats',           ctrl.getStats);
-router.get('/users',           ctrl.getUsers);
-router.patch('/users/:userId/toggle', ctrl.toggleUser);
-router.get('/businesses',      ctrl.getBusinesses);
-router.get('/revenue-trend',   ctrl.getRevenueTrend);
-router.get('/top-businesses',  ctrl.getTopBusinesses);
+router.get('/stats',                          ctrl.getStats);
+router.get('/users',                          ctrl.getUsers);
+router.patch('/users/:userId/toggle',         ctrl.toggleUser);
+router.post('/users/:userId/suspend',         ctrl.suspendValidators, ctrl.suspendUser);
+router.post('/users/:userId/unsuspend',       ctrl.unsuspendUser);
+router.get('/businesses',                     ctrl.getBusinesses);
+router.get('/revenue-trend',                  ctrl.getRevenueTrend);
+router.get('/top-businesses',                 ctrl.getTopBusinesses);
 
 export default router;

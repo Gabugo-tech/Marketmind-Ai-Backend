@@ -100,6 +100,9 @@ export async function getAllUsers(page = 1, limit = 20, search = '') {
         lastName: true,
         role: true,
         isActive: true,
+        isSuspended: true,
+        suspendedReason: true,
+        suspendedAt: true,
         createdAt: true,
         lastLoginAt: true,
         _count: { select: { businesses: true } },
@@ -123,6 +126,56 @@ export async function toggleUserActive(userId: string, adminId: string) {
     where: { id: userId },
     data: { isActive: !user.isActive },
     select: { id: true, isActive: true },
+  });
+}
+
+// ── Suspend a user (sets isSuspended=true, stores reason, revokes tokens) ─────
+export async function suspendUser(userId: string, adminId: string, reason: string) {
+  if (userId === adminId) throw new Error('Cannot suspend your own account');
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, isSuspended: true },
+  });
+  if (!user) throw new Error('User not found');
+  if (user.role === 'ADMIN') throw new Error('Cannot suspend another admin');
+  if (user.isSuspended) throw new Error('User is already suspended');
+
+  // Revoke all active refresh tokens so they're immediately logged out
+  await prisma.refreshToken.deleteMany({ where: { userId } });
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      isSuspended: true,
+      suspendedReason: reason.trim() || 'Suspended by administrator',
+      suspendedAt: new Date(),
+      isActive: false, // also mark inactive for belt-and-suspenders
+    },
+    select: { id: true, isSuspended: true, suspendedReason: true },
+  });
+}
+
+// ── Unsuspend a user ──────────────────────────────────────────────────────────
+export async function unsuspendUser(userId: string, adminId: string) {
+  if (userId === adminId) throw new Error('Cannot unsuspend your own account');
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, isSuspended: true },
+  });
+  if (!user) throw new Error('User not found');
+  if (!user.isSuspended) throw new Error('User is not suspended');
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      isSuspended: false,
+      suspendedReason: null,
+      suspendedAt: null,
+      isActive: true,
+    },
+    select: { id: true, isSuspended: true },
   });
 }
 
