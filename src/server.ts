@@ -19,6 +19,7 @@ import forecastingRoutes from './routes/forecasting.routes';
 import assistantRoutes from './routes/assistant.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import businessRoutes from './routes/business.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/forecasting', forecastingRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/business', businessRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFoundHandler);

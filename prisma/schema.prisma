@@ -15,6 +15,11 @@ datasource db {
 // USERS & AUTHENTICATION
 // ============================================================
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -22,6 +27,7 @@ model User {
   firstName       String    @map("first_name")
   lastName        String    @map("last_name")
   phone           String?
+  role            UserRole  @default(USER)
   isEmailVerified Boolean   @default(false) @map("is_email_verified")
   isActive        Boolean   @default(true) @map("is_active")
   lastLoginAt     DateTime? @map("last_login_at")
@@ -33,6 +39,20 @@ model User {
   refreshTokens    RefreshToken[]
 
   @@map("users")
+}
+
+// Tracks login attempts per IP for brute-force protection
+model LoginAttempt {
+  id          String   @id @default(uuid())
+  ip          String
+  email       String
+  success     Boolean  @default(false)
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([ip, createdAt])
+  @@index([email, createdAt])
+  @@map("login_attempts")
 }
 
 model RefreshToken {

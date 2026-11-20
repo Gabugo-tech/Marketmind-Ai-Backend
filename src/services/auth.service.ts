@@ -23,14 +23,14 @@ interface LoginInput {
   password: string;
 }
 
-function generateTokens(userId: string, email: string) {
+function generateTokens(userId: string, email: string, role: 'USER' | 'ADMIN' = 'USER') {
   const accessToken = jwt.sign(
-    { userId, email },
+    { userId, email, role },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'] }
   );
   const refreshToken = jwt.sign(
-    { userId, email },
+    { userId, email, role },
     config.jwt.refreshSecret,
     { expiresIn: config.jwt.refreshExpiresIn as jwt.SignOptions['expiresIn'] }
   );
@@ -77,6 +77,7 @@ export async function registerUser(input: RegisterInput) {
       firstName: true,
       lastName: true,
       phone: true,
+      role: true,
       createdAt: true,
       businesses: {
         select: {
@@ -89,7 +90,7 @@ export async function registerUser(input: RegisterInput) {
     },
   });
 
-  const tokens = generateTokens(user.id, user.email);
+  const tokens = generateTokens(user.id, user.email, user.role);
 
   // Store refresh token
   const expiresAt = new Date();
@@ -111,22 +112,14 @@ export async function loginUser(input: LoginInput) {
     },
   });
 
-  if (!user || !user.isActive) {
-    throw new UnauthorizedError('Invalid email or password');
-  }
+  if (!user || !user.isActive) throw new UnauthorizedError('Invalid email or password');
 
   const passwordMatch = await bcrypt.compare(input.password, user.passwordHash);
-  if (!passwordMatch) {
-    throw new UnauthorizedError('Invalid email or password');
-  }
+  if (!passwordMatch) throw new UnauthorizedError('Invalid email or password');
 
-  // Update last login
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
-  const tokens = generateTokens(user.id, user.email);
+  const tokens = generateTokens(user.id, user.email, user.role);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
@@ -158,7 +151,12 @@ export async function refreshUserToken(refreshToken: string) {
   // Rotate refresh token
   await prisma.refreshToken.delete({ where: { token: refreshToken } });
 
-  const tokens = generateTokens(payload.userId, payload.email);
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { role: true },
+  });
+
+  const tokens = generateTokens(payload.userId, payload.email, user?.role ?? 'USER');
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
   await prisma.refreshToken.create({
