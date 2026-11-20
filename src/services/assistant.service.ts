@@ -9,7 +9,7 @@ import { subDays, format, startOfMonth, endOfMonth, startOfDay } from 'date-fns'
 
 // Direct REST API call to Groq (free, no credit card, OpenAI-compatible)
 async function callGemini(prompt: string, history: { role: string; text: string }[]): Promise<string> {
-  const apiKey = config.gemini.apiKey;
+  const apiKey = config.gemini.apiKey; // reusing same env var — just paste Groq key there
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
   const messages = [
@@ -17,48 +17,29 @@ async function callGemini(prompt: string, history: { role: string; text: string 
     { role: 'user', content: prompt },
   ];
 
-  // llama-3.1-8b-instant: 30 req/min free tier — much higher limit than large models
-  const MODELS = [
-    'llama-3.1-8b-instant',
-    'llama3-8b-8192',
-    'gemma2-9b-it',
-  ];
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'qwen/qwen3.8-27b',  // tested and confirmed working free tier on Groq
+      messages,
+      max_tokens: 1024,
+      temperature: 0.4,
+    }),
+  });
 
-  let lastError = '';
-  for (const model of MODELS) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 1024,
-        temperature: 0.4,
-      }),
-    });
-
-    if (response.status === 429) {
-      // Rate limited on this model — try next
-      lastError = '429';
-      continue;
-    }
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error);
-    }
-
-    const data = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    return data.choices?.[0]?.message?.content ?? "I couldn't generate a response.";
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error);
   }
 
-  // All models rate-limited
-  throw new Error(`rate_limit_${lastError}`);
+  const data = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return data.choices?.[0]?.message?.content ?? "I couldn't generate a response.";
 }
 
 async function buildBusinessContext(businessId: string): Promise<string> {
@@ -165,7 +146,7 @@ RULES:
     if (errMsg.includes('API key not valid') || errMsg.includes('UNAUTHENTICATED') || errMsg.includes('invalid_api_key')) {
       reply = "⚠️ Invalid API key. Please update GEMINI_API_KEY in Railway with your Groq API key from https://console.groq.com";
     } else if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('rate_limit')) {
-      reply = "⚠️ The AI is currently busy. Please wait 30 seconds and try again. This happens when many requests are made in a short time.";
+      reply = "⚠️ API rate limit reached. Please wait a moment and try again.";
     } else if (errMsg.includes('not found') || errMsg.includes('404') || errMsg.includes('model')) {
       reply = `⚠️ Model error: ${errMsg.slice(0, 150)}`;
     } else {
