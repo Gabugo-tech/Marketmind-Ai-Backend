@@ -92,6 +92,35 @@ app.listen(PORT, () => {
   console.log(`📊 Environment: ${config.nodeEnv}`);
   console.log(`🔗 Frontend: ${config.frontendUrl}`);
   console.log(`💡 Health: http://localhost:${PORT}/health\n`);
+
+  // ── Keep-alive self-ping (production only) ──────────────────────────────
+  // Railway free tier sleeps after 15 minutes of inactivity, causing a
+  // 5–15 second cold start on the next request. Pinging /health every
+  // 14 minutes keeps the process warm at zero cost.
+  if (config.nodeEnv === 'production') {
+    const PING_INTERVAL_MS = 14 * 60 * 1000; // 14 minutes
+    const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+      : `http://localhost:${PORT}/health`;
+
+    setInterval(async () => {
+      try {
+        const { default: https } = await import('https');
+        const { default: http } = await import('http');
+        const client = selfUrl.startsWith('https') ? https : http;
+        client.get(selfUrl, (res) => {
+          res.resume(); // drain the response so the socket closes
+          console.log(`[keep-alive] ping → ${res.statusCode}`);
+        }).on('error', (err) => {
+          console.warn(`[keep-alive] ping failed: ${err.message}`);
+        });
+      } catch {
+        // non-fatal — just log and continue
+      }
+    }, PING_INTERVAL_MS);
+
+    console.log(`⏱  Keep-alive ping scheduled every 14 min → ${selfUrl}`);
+  }
 });
 
 export default app;
